@@ -1,0 +1,31 @@
+{
+  "name": "ai-job-matcher",
+  "version": "0.1.0",
+  "description": "AI-powered job matching assistant: an adaptive interview that builds a candidate profile, then searches and ranks real job openings.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "dev": "node --env-file-if-exists=.env --experimental-strip-types src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types"
+  },
+  "keywords": [
+    "jobs",
+    "ai",
+    "career",
+    "matching",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
