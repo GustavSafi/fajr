@@ -4,19 +4,16 @@
  * Nothing else in the app reads `process.env` directly — everything goes
  * through here so validation lives in one place and secrets never get scattered
  * across the codebase.
+ *
+ * The interview is fully rule-based and needs no keys. Configuration here is
+ * only for the job-search providers (added in later steps).
  */
 
-const DEFAULT_MODEL = "claude-opus-4-8";
 const DEFAULT_JOBTECH_URL = "https://jobsearch.api.jobtechdev.se";
 
 function optional(name: string): string | undefined {
   const value = process.env[name]?.trim();
   return value ? value : undefined;
-}
-
-export interface AnthropicConfig {
-  apiKey: string | undefined;
-  model: string;
 }
 
 export interface AdzunaConfig {
@@ -30,7 +27,6 @@ export interface JobTechConfig {
 }
 
 export interface AppConfig {
-  anthropic: AnthropicConfig;
   adzuna: AdzunaConfig;
   jobtech: JobTechConfig;
 }
@@ -38,10 +34,6 @@ export interface AppConfig {
 /** Read and normalize configuration from the environment. */
 export function loadConfig(): AppConfig {
   return {
-    anthropic: {
-      apiKey: optional("ANTHROPIC_API_KEY"),
-      model: optional("ANTHROPIC_MODEL") ?? DEFAULT_MODEL,
-    },
     adzuna: {
       appId: optional("ADZUNA_APP_ID"),
       appKey: optional("ADZUNA_APP_KEY"),
@@ -54,21 +46,14 @@ export function loadConfig(): AppConfig {
 }
 
 /**
- * Assert that the config required to actually run is present. Fails loudly with
- * a clear message rather than making a half-configured API call later.
- *
- * The Anthropic key is mandatory (it drives the interview). Job providers are
- * checked individually at search time so the app still works with just one.
+ * Validate provider configuration. Job providers are checked individually at
+ * search time so the app still works with just one (or none, for a dry run).
+ * Fails loudly on a half-configured provider rather than at request time.
  */
 export function assertRunnable(config: AppConfig): void {
   const problems: string[] = [];
 
-  if (!config.anthropic.apiKey) {
-    problems.push("ANTHROPIC_API_KEY is missing — the interview cannot run without it.");
-  }
-
-  const adzunaPartial =
-    Boolean(config.adzuna.appId) !== Boolean(config.adzuna.appKey);
+  const adzunaPartial = Boolean(config.adzuna.appId) !== Boolean(config.adzuna.appKey);
   if (adzunaPartial) {
     problems.push(
       "Adzuna is half-configured — set BOTH ADZUNA_APP_ID and ADZUNA_APP_KEY, or neither.",

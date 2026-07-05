@@ -1,42 +1,54 @@
 import type { UserProfile } from "../models/index.ts";
 
-export type Speaker = "assistant" | "user";
+/** A single answer, shaped by the question kind. `null` means skipped. */
+export type Answer = string | string[] | number | boolean | null;
 
-/** One line of the interview conversation. */
-export interface ChatTurn {
-  speaker: Speaker;
-  text: string;
+/** All answers collected so far, keyed by question id. Used for branching. */
+export type Answers = Record<string, Answer>;
+
+export type QuestionKind = "single" | "multi" | "yesno" | "number";
+
+export interface QuestionOption {
+  /** Stable value stored in answers and used by `when` branching. */
+  value: string;
+  /** Text shown to the user. */
+  label: string;
 }
 
 /**
- * The result of one interview step: the (possibly updated) profile, plus the
- * next question to ask — or a signal that we have enough to search.
+ * One interview question. Questions are plain data + two small functions:
+ * `when` decides whether the question applies (branching), and `apply` writes
+ * the answer into the structured profile. No AI — fully deterministic.
  */
-export interface InterviewTurn {
-  /** Short note on why this question was chosen, or why the interview is done. */
-  rationale: string;
-  /** The next question to ask the user, or null when the interview is complete. */
-  question: string | null;
-  /** True when enough has been collected (or the user asked to stop). */
-  done: boolean;
-  /** The full candidate profile, updated from everything said so far. */
-  profile: UserProfile;
-}
-
-/**
- * The "brain" of the interview. Given the transcript and current profile, it
- * decides what to ask next and keeps the structured profile up to date.
- *
- * This interface is the seam that lets us swap a real LLM (ClaudeBrain) for a
- * deterministic MockBrain in tests.
- */
-export interface InterviewBrain {
-  next(transcript: ChatTurn[], profile: UserProfile): Promise<InterviewTurn>;
+export interface Question {
+  id: string;
+  kind: QuestionKind;
+  prompt: string;
+  /** Optional one-liner explaining why we ask — shown to the user. */
+  why?: string;
+  /** Options for `single` / `multi` questions. */
+  options?: QuestionOption[];
+  /** Bounds for `number` questions. */
+  min?: number;
+  max?: number;
+  /** Unit shown next to a number prompt, e.g. "years", "USD/year". */
+  unit?: string;
+  /** If true, the user may skip (blank answer → null). */
+  optional?: boolean;
+  /** Branching: only ask when this returns true (given answers so far). */
+  when?: (answers: Answers) => boolean;
+  /** Write the answer into the profile. */
+  apply: (profile: UserProfile, answer: Answer, answers: Answers) => void;
 }
 
 /** Terminal input/output, abstracted so the engine can be driven in tests. */
 export interface InterviewIO {
   say(message: string): void;
-  ask(question: string): Promise<string>;
+  ask(prompt: string): Promise<string>;
   close?(): void;
+}
+
+export interface InterviewResult {
+  profile: UserProfile;
+  answers: Answers;
 }

@@ -1,57 +1,63 @@
-# AI Job Matcher
+# Job Matcher
 
-An AI-powered career assistant that runs an **adaptive interview** (one question
-at a time, like a recruiter), builds a structured candidate profile, then
-searches real job APIs and returns a **ranked, explained** list of matches.
+A career assistant that runs a **structured interview** (one question at a time,
+like a guided recruiter), builds a candidate profile, then searches real job
+APIs and returns a **ranked, explained** list of matches.
 
-> Status: **Step 1 of 8 — scaffold & config.** The interview, job search, and
-> ranking are being built incrementally.
+It is **rule-based, not AI-driven**: the interview is a branching questionnaire
+and job matches are scored with a transparent weighted point system. No LLM, no
+API costs, fully deterministic and explainable.
+
+> Status: **Step 2 of 8 — interview complete.** Job search and ranking next.
 
 ## Requirements
 
-- Node.js **≥ 20** (uses the built-in `--env-file` and TypeScript stripping)
+- Node.js **≥ 20** (uses the built-in TypeScript stripping to run from source)
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env   # then fill in your keys
+cp .env.example .env   # only needed once you wire up job search (later steps)
 ```
 
-Keys go in `.env` (git-ignored, never committed):
+The **interview needs no keys**. Job-search providers do:
 
-| Variable | Required | Purpose |
+| Provider | Keys | Notes |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | yes | Powers the adaptive interview & match explanations |
-| `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` | optional | Adzuna job search |
+| Adzuna | `ADZUNA_APP_ID` + `ADZUNA_APP_KEY` | Free tier; from developer.adzuna.com |
 | JobTech Dev | — | Open API, **no key needed** |
+
+Keys live in `.env` (git-ignored, never committed).
 
 ## Run
 
 ```bash
-npm run dev        # run from source (no build step)
+npm run dev        # run the interview from source (no build step)
 npm run build      # compile to dist/
 npm start          # run the compiled build
 npm run typecheck  # type-check only
+npm test           # run unit tests
 ```
 
 ## Architecture
 
 ```
 src/
-  config/     typed environment loading & validation
-  models/     shared TypeScript types (UserProfile, Job, JobProvider, ...)
-  interview/  adaptive question-asking engine        (step 2)
-  profile/    structured profile building & summary   (step 3)
-  apis/       job providers behind one interface      (step 4)
-  ranking/    compatibility scoring & explanations    (step 6)
-  services/   orchestration wiring the pieces together
-  prompts/    LLM prompt templates
+  config/     typed environment loading & validation (job providers only)
+  models/     shared types (UserProfile, Job, JobProvider, ...)
+  interview/  structured branching questionnaire + points engine  (step 2 ✓)
+  profile/    profile summary & (soon) job-query building          (step 3)
+  apis/       job providers behind one interface                   (step 4)
+  ranking/    weighted compatibility scoring & explanations        (step 6)
   utils/      logging & helpers
 ```
 
 ### Design principles
 
+- **Interview as data** — questions are a plain array with `when` (branching)
+  and `apply` (profile mapping) functions. Adding or reordering questions is a
+  data edit, not a code change.
 - **One `JobProvider` interface** — adding a new job API is a single new file.
 - **Explainable scoring** — the 0–100 score is a weighted sum of named
   sub-scores (title, skills, experience, location, remote, salary, …), so every
