@@ -6,7 +6,7 @@
  * across the codebase.
  */
 
-const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_MODEL = "claude-opus-4-8";
 const DEFAULT_JOBTECH_URL = "https://jobsearch.api.jobtechdev.se";
 
 function optional(name: string): string | undefined {
