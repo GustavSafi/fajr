@@ -6,6 +6,8 @@ import type {
   SubScore,
   UserProfile,
 } from "../models/index.ts";
+import type { Lang } from "../i18n.ts";
+import { RS } from "./strings.ts";
 
 /**
  * Per-source weights. The two sources expose different data, so they lean on
@@ -18,8 +20,32 @@ const WEIGHTS: Record<JobSource, Record<ScoreDimension, number>> = {
   adzuna: { title: 3, skills: 2, experience: 2, location: 1, remote: 1, salary: 2.5, employment: 1 },
 };
 
-const SENIOR = /\b(senior|lead|principal|staff|head|chef|manager)\b/;
-const JUNIOR = /\b(junior|graduate|entry|intern|trainee|assistant)\b/;
+const SENIOR = /\b(senior|lead|principal|staff|head|chef|manager|erfaren|ledande)\b/;
+const JUNIOR = /\b(junior|graduate|entry|intern|trainee|assistant|nyexaminerad|praktik)\b/;
+
+/** Canonical country codes so "United Kingdom" matches Adzuna's "UK", etc. */
+const COUNTRY_ALIASES: Record<string, string> = {
+  uk: "uk", "united kingdom": "uk", "great britain": "uk", gb: "uk",
+  us: "us", usa: "us", "united states": "us", "united states of america": "us",
+  sweden: "se", sverige: "se", se: "se",
+  germany: "de", deutschland: "de", de: "de",
+  france: "fr", fr: "fr",
+  netherlands: "nl", nl: "nl",
+  australia: "au", au: "au",
+  canada: "ca", ca: "ca",
+};
+function normCountry(c: string): string {
+  const k = c.toLowerCase().trim();
+  return COUNTRY_ALIASES[k] ?? k;
+}
+
+/** Whole-word skill match so short skills ("Go", "R") don't hit substrings. */
+function skillInText(haystack: string, skill: string): boolean {
+  const s = skill.trim().toLowerCase();
+  if (!s) return false;
+  const esc = s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9+#.])${esc}($|[^a-z0-9+#.])`, "i").test(haystack);
+}
 
 interface Dim {
   score: number;
@@ -60,7 +86,7 @@ function matchedSkills(p: UserProfile, job: Job): string[] {
   ]
     .join(" ")
     .toLowerCase();
-  return hardSkills(p).filter((s) => s && haystack.includes(s.toLowerCase()));
+  return hardSkills(p).filter((s) => skillInText(haystack, s));
 }
 
 function skillsDim(p: UserProfile, matched: string[]): Dim {
@@ -83,7 +109,8 @@ function experienceDim(p: UserProfile, job: Job): Dim {
 function locationDim(p: UserProfile, job: Job): Dim {
   const wanted = p.location.countries ?? [];
   if (!job.country || wanted.length === 0) return NA;
-  if (wanted.some((c) => c.toLowerCase() === job.country!.toLowerCase())) {
+  const jobCountry = normCountry(job.country);
+  if (wanted.some((c) => normCountry(c) === jobCountry)) {
     return { score: 1, applicable: true };
   }
   return { score: p.location.willingToRelocate ? 0.5 : 0.2, applicable: true };
@@ -110,12 +137,13 @@ function employmentDim(p: UserProfile, job: Job): Dim {
   return { score: wanted.includes(job.employmentType) ? 1 : 0.3, applicable: true };
 }
 
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 /** Score one job for the given profile and source. */
-export function scoreJob(profile: UserProfile, job: Job, source: JobSource): RankedJob {
+export function scoreJob(
+  profile: UserProfile,
+  job: Job,
+  source: JobSource,
+  lang: Lang = "en",
+): RankedJob {
   const weights = WEIGHTS[source];
   const matched = matchedSkills(profile, job);
 
@@ -147,8 +175,8 @@ export function scoreJob(profile: UserProfile, job: Job, source: JobSource): Ran
   }
   const score = weightSum > 0 ? Math.round((weightedScore / weightSum) * 100) : 0;
 
-  const reasons = buildReasons(profile, job, dims, matched);
-  const gaps = buildGaps(profile, job, dims, matched);
+  const reasons = buildReasons(profile, job, dims, matched, lang);
+  const gaps = buildGaps(profile, job, dims, matched, lang);
 
   return { job, score, subScores, reasons, gaps };
 }
@@ -158,26 +186,27 @@ function buildReasons(
   job: Job,
   dims: Record<ScoreDimension, Dim>,
   matched: string[],
+  lang: Lang,
 ): string[] {
   const reasons: string[] = [];
-  if (dims.title.applicable && dims.title.score >= 0.7) reasons.push("Title matches your target role");
+  if (dims.title.applicable && dims.title.score >= 0.7) reasons.push(RS.titleMatch(lang));
   if (dims.skills.applicable && matched.length > 0) {
-    reasons.push(`Matches your skills: ${matched.slice(0, 4).join(", ")}`);
+    reasons.push(RS.skills(matched.slice(0, 4).join(", "), lang));
   }
   if (dims.experience.applicable && dims.experience.score >= 0.7 && p.experience.totalYears !== undefined) {
-    reasons.push(`Seniority fits your ${p.experience.totalYears} years of experience`);
+    reasons.push(RS.seniority(p.experience.totalYears, lang));
   }
   if (dims.location.applicable && dims.location.score >= 0.9 && job.country) {
-    reasons.push(`Located in ${job.country}, where you want to work`);
+    reasons.push(RS.location(job.country, lang));
   }
   if (dims.remote.applicable && dims.remote.score >= 0.9 && job.arrangement) {
-    reasons.push(`${cap(job.arrangement)} — matches your preference`);
+    reasons.push(RS.arrangement(job.arrangement, lang));
   }
   if (dims.salary.applicable && dims.salary.score >= 0.85) {
-    reasons.push(job.salaryPredicted ? "Estimated salary meets your target" : "Meets your minimum salary");
+    reasons.push(RS.salary(Boolean(job.salaryPredicted), lang));
   }
   if (dims.employment.applicable && dims.employment.score >= 0.9 && job.employmentType) {
-    reasons.push(`${job.employmentType} role, as you wanted`);
+    reasons.push(RS.employment(job.employmentType, lang));
   }
   return reasons;
 }
@@ -187,6 +216,7 @@ function buildGaps(
   job: Job,
   dims: Record<ScoreDimension, Dim>,
   matched: string[],
+  lang: Lang,
 ): string[] {
   const gaps: string[] = [];
 
@@ -194,19 +224,17 @@ function buildGaps(
   const required = job.requiredSkills ?? [];
   if (required.length > 0) {
     const have = new Set(matched.map((m) => m.toLowerCase()));
-    const missing = required.filter(
-      (r) => ![...have].some((h) => r.toLowerCase().includes(h)),
-    );
-    if (missing.length > 0) gaps.push(`Listed requirements to check: ${missing.slice(0, 3).join(", ")}`);
+    const missing = required.filter((r) => ![...have].some((h) => r.toLowerCase().includes(h)));
+    if (missing.length > 0) gaps.push(RS.gapRequirements(missing.slice(0, 3).join(", "), lang));
   }
 
-  if (dims.salary.applicable && dims.salary.score < 0.85) gaps.push("Salary may be below your target");
-  if (dims.location.applicable && dims.location.score < 0.5) gaps.push("Not in your preferred location");
+  if (dims.salary.applicable && dims.salary.score < 0.85) gaps.push(RS.gapSalaryLow(lang));
+  if (dims.location.applicable && dims.location.score < 0.5) gaps.push(RS.gapLocation(lang));
   if (dims.remote.applicable && dims.remote.score < 0.5 && job.arrangement) {
-    gaps.push(`${cap(job.arrangement)} — not your preferred arrangement`);
+    gaps.push(RS.gapArrangement(job.arrangement, lang));
   }
   if (p.preferences.salaryMin !== undefined && job.salaryMin === undefined && job.salaryMax === undefined) {
-    gaps.push("No salary listed");
+    gaps.push(RS.gapNoSalary(lang));
   }
   return gaps;
 }

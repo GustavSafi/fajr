@@ -1,4 +1,5 @@
 import type { Job, JobSource, RankedJob, UserProfile } from "../models/index.ts";
+import type { Lang } from "../i18n.ts";
 import { scoreJob } from "./score.ts";
 
 export { scoreJob } from "./score.ts";
@@ -17,8 +18,13 @@ function dedupe(jobs: Job[]): Job[] {
 }
 
 /** Score every job and return them ranked best-first. */
-export function rankJobs(profile: UserProfile, jobs: Job[], source: JobSource): RankedJob[] {
+export function rankJobs(
+  profile: UserProfile,
+  jobs: Job[],
+  source: JobSource,
+  lang: Lang = "en",
+): RankedJob[] {
   return dedupe(jobs)
-    .map((job) => scoreJob(profile, job, source))
+    .map((job) => scoreJob(profile, job, source, lang))
     .sort((a, b) => b.score - a.score);
 }

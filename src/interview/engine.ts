@@ -1,20 +1,24 @@
 import type { Answers, InterviewIO, InterviewResult, Question } from "./types.ts";
 import type { JobSource } from "../models/index.ts";
+import type { Lang } from "../i18n.ts";
 import { emptyProfile } from "../models/index.ts";
 import { QUESTION_BANK } from "./questions.ts";
 import { askQuestion } from "./ask.ts";
 import { buildSummary } from "../profile/summary.ts";
+import { UI } from "./strings.ts";
 
-const GREETING =
-  "Hi! I'd love to help you find jobs that actually fit you — not just jobs that happen to contain certain keywords.\n" +
-  "I'll ask you a few quick questions to understand what you're looking for. Just pick the options that fit.";
+/** Shown before the source (hence language) is chosen — bilingual. */
+const GREETING = `${UI.en.greeting}\n\n${UI.sv.greeting}`;
 
-const CLOSING = "Thanks — that's everything I need. Let me put together your profile and start searching.";
+function langOf(answers: Answers): Lang {
+  return answers["source"] === "jobtech" ? "sv" : "en";
+}
 
 /**
  * Run the structured interview: walk the question bank in order, skipping the
  * questions that don't apply (branching), record each answer into the profile,
- * and finish with a generated summary. Fully deterministic — no AI.
+ * and finish with a generated summary. The language follows the chosen source
+ * (JobTech → Swedish, Adzuna → English). Fully deterministic — no AI.
  */
 export async function runInterview(
   io: InterviewIO,
@@ -27,16 +31,17 @@ export async function runInterview(
 
   for (const q of questions) {
     if (q.when && !q.when(answers)) continue;
-    const answer = await askQuestion(io, q);
+    const lang = langOf(answers);
+    const answer = await askQuestion(io, q, lang);
     answers[q.id] = answer;
-    q.apply(profile, answer, answers);
+    q.apply(profile, answer, { answers, lang, question: q });
   }
 
-  profile.summary = buildSummary(profile);
+  const lang = langOf(answers);
+  profile.summary = buildSummary(profile, lang);
 
-  // The source question defaults to jobtech if somehow unanswered.
   const source: JobSource = answers["source"] === "adzuna" ? "adzuna" : "jobtech";
 
-  io.say(CLOSING);
+  io.say(UI[lang].closing);
   return { profile, answers, source };
 }

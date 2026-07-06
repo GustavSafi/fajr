@@ -38,8 +38,9 @@ function mapEmployment(label: string | undefined): EmploymentType | undefined {
 }
 
 function mapCountry(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  return raw.toLowerCase().startsWith("sverige") ? "Sweden" : raw;
+  // Keep the native name ("Sverige") — the interface is Swedish for JobTech,
+  // and country matching normalizes "Sverige"/"Sweden" to the same code.
+  return raw || undefined;
 }
 
 function labels(req: JobTechRequirements | undefined): string[] {

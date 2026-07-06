@@ -88,6 +88,40 @@ test("missing salary is neutral for JobTech, not a penalty in the weighted score
   assert.ok(ranked.gaps.some((g) => g.includes("Rust")), "should flag missing Rust requirement");
 });
 
+test("short skill 'Go' does not false-match a substring inside another word", () => {
+  const p = emptyProfile();
+  p.skills.programmingLanguages = ["Go"];
+  const job: Job = {
+    id: "jobtech:x",
+    source: "jobtech",
+    title: "Utvecklare",
+    description: "Du arbetar nära dina kollegor i ett agilt team.", // 'kollegor' contains 'go'
+    country: "Sweden",
+    url: "https://x",
+  };
+  const r = scoreJob(p, job, "jobtech");
+  assert.ok(
+    !r.reasons.some((x) => x.toLowerCase().includes("go")),
+    "should not claim a Go skill match from 'kollegor'",
+  );
+});
+
+test("country aliases: profile 'United Kingdom' matches Adzuna 'UK'", () => {
+  const p = emptyProfile();
+  p.location.countries = ["United Kingdom"];
+  const job: Job = {
+    id: "adzuna:x",
+    source: "adzuna",
+    title: "Developer",
+    description: "",
+    country: "UK",
+    url: "https://x",
+  };
+  const location = scoreJob(p, job, "adzuna").subScores.find((s) => s.dimension === "location");
+  assert.equal(location?.applicable, true);
+  assert.equal(location?.score, 1, "United Kingdom should match UK");
+});
+
 test("rankJobs sorts best-first and de-dupes identical title+company", () => {
   const p = baseProfile();
   const dup: Job = { ...strongAdzuna, id: "adzuna:dup" };

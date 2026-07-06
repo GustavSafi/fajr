@@ -1,22 +1,34 @@
 import type { Question } from "./types.ts";
 import type { EmploymentType, WorkArrangement } from "../models/index.ts";
+import type { Lang } from "../i18n.ts";
+import { selectedLabels } from "./ask.ts";
 
 /** Merge new values into a profile string array, de-duplicated, order-preserving. */
 function addUnique(existing: string[] | undefined, values: string[]): string[] {
-  return [...new Set([...(existing ?? []), ...values])];
+  return [...new Set([...(existing ?? []), ...values])].filter(Boolean);
 }
 
-/** Human-readable industry name for each top-level field code. */
-const INDUSTRY_BY_FIELD: Record<string, string> = {
-  software: "Software & Technology",
-  teaching: "Education",
-  design: "Design & Creative",
-  healthcare: "Healthcare",
-  business: "Business & Operations",
-  other: "Other",
+/** Localized industry name for each top-level field code. */
+const INDUSTRY: Record<Lang, Record<string, string>> = {
+  en: {
+    software: "Software & Technology",
+    teaching: "Education",
+    design: "Design & Creative",
+    healthcare: "Healthcare",
+    business: "Business & Operations",
+    other: "Other",
+  },
+  sv: {
+    software: "IT & Teknik",
+    teaching: "Utbildning",
+    design: "Design & Kreativt",
+    healthcare: "Vård & Omsorg",
+    business: "Ekonomi & Verksamhet",
+    other: "Övrigt",
+  },
 };
 
-/** Adzuna marketplaces we let the user search, with display country + currency. */
+/** Adzuna marketplaces (Adzuna path is English-only). */
 export const ADZUNA_MARKETS: Array<{
   value: string;
   label: string;
@@ -32,134 +44,140 @@ export const ADZUNA_MARKETS: Array<{
   { value: "ca", label: "Canada", country: "Canada", currency: "CAD" },
 ];
 
-/**
- * The interview as data. Questions are asked in order; `when` skips the ones
- * that don't apply (branching), and `apply` records the answer in the profile.
- * Fully deterministic — no AI, no external calls.
- */
+/** Store the localized labels of the selected options into a profile array. */
+function storeLabels(
+  target: (values: string[]) => void,
+  q: Question,
+  answer: Parameters<Question["apply"]>[1],
+  lang: Lang,
+): void {
+  target(selectedLabels(q, answer, lang));
+}
+
 export const QUESTION_BANK: Question[] = [
   {
     id: "source",
     kind: "single",
-    prompt: "Which job source would you like to search?",
-    why: "Each source covers different regions and data, so I'll tailor the questions",
+    prompt:
+      "Which job source would you like to search? / Vilken jobbkälla vill du söka i?",
+    why: "JobTech covers Sweden (in Swedish); Adzuna covers international jobs (in English). / JobTech täcker Sverige (på svenska); Adzuna täcker internationella jobb (på engelska).",
     options: [
-      { value: "jobtech", label: "JobTech — jobs in Sweden (Arbetsförmedlingen)" },
+      { value: "jobtech", label: "JobTech — jobb i Sverige (Arbetsförmedlingen)" },
       { value: "adzuna", label: "Adzuna — international jobs (UK, US, Germany, ...)" },
     ],
     apply: () => {
-      /* source drives branching via `when`; nothing to store on the profile */
+      /* source drives branching + language via `when`; nothing to store */
     },
   },
   {
     id: "field",
     kind: "single",
-    prompt: "What field are you hoping to work in?",
-    why: "It lets me ask the right follow-up questions for your profession",
+    prompt: { en: "What field are you hoping to work in?", sv: "Vilket område vill du arbeta inom?" },
+    why: {
+      en: "It lets me ask the right follow-up questions for your profession",
+      sv: "Så att jag kan ställa rätt följdfrågor för ditt yrke",
+    },
     options: [
-      { value: "software", label: "Software & Technology" },
-      { value: "teaching", label: "Teaching & Education" },
-      { value: "design", label: "Design & Creative" },
-      { value: "healthcare", label: "Healthcare" },
-      { value: "business", label: "Business, Sales & Operations" },
-      { value: "other", label: "Something else" },
+      { value: "software", label: { en: "Software & Technology", sv: "IT & Teknik" } },
+      { value: "teaching", label: { en: "Teaching & Education", sv: "Undervisning & Utbildning" } },
+      { value: "design", label: { en: "Design & Creative", sv: "Design & Kreativt" } },
+      { value: "healthcare", label: { en: "Healthcare", sv: "Vård & Omsorg" } },
+      { value: "business", label: { en: "Business, Sales & Operations", sv: "Ekonomi, Försäljning & Verksamhet" } },
+      { value: "other", label: { en: "Something else", sv: "Något annat" } },
     ],
-    apply: (p, a) => {
-      p.careerGoals.industries = addUnique(p.careerGoals.industries, [
-        INDUSTRY_BY_FIELD[a as string] ?? "Other",
-      ]);
+    apply: (p, a, ctx) => {
+      const industry = INDUSTRY[ctx.lang][a as string] ?? INDUSTRY[ctx.lang]["other"]!;
+      p.careerGoals.industries = addUnique(p.careerGoals.industries, [industry]);
     },
   },
 
-  // ---- Role, branched by field ----
+  // ---- Role, branched by field. Swedish labels double as JobTech search terms. ----
   {
     id: "roleSoftware",
     kind: "multi",
-    prompt: "Which kind of software role fits you best?",
+    prompt: { en: "Which kind of software role fits you best?", sv: "Vilken typ av IT-roll passar dig bäst?" },
     when: (a) => a["field"] === "software",
     options: [
-      { value: "Backend Engineer", label: "Backend Engineer" },
-      { value: "Frontend Engineer", label: "Frontend Engineer" },
-      { value: "Full-Stack Engineer", label: "Full-Stack Engineer" },
-      { value: "Mobile Engineer", label: "Mobile Engineer" },
-      { value: "Data Engineer / Scientist", label: "Data Engineer / Scientist" },
-      { value: "DevOps / Platform Engineer", label: "DevOps / Platform Engineer" },
-      { value: "QA Engineer", label: "QA / Test Engineer" },
+      { value: "backend", label: { en: "Backend Developer", sv: "Backend-utvecklare" } },
+      { value: "frontend", label: { en: "Frontend Developer", sv: "Frontend-utvecklare" } },
+      { value: "fullstack", label: { en: "Full-Stack Developer", sv: "Fullstack-utvecklare" } },
+      { value: "mobile", label: { en: "Mobile Developer", sv: "Apputvecklare" } },
+      { value: "data", label: { en: "Data Engineer / Scientist", sv: "Datavetare / Data Scientist" } },
+      { value: "devops", label: { en: "DevOps / Platform Engineer", sv: "DevOps-ingenjör" } },
+      { value: "qa", label: { en: "QA / Test Engineer", sv: "Testare" } },
     ],
-    apply: (p, a) => {
-      p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, a as string[]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, v)), ctx.question, a, ctx.lang),
   },
   {
     id: "roleTeaching",
     kind: "multi",
-    prompt: "What kind of teaching role are you after?",
+    prompt: { en: "What kind of teaching role are you after?", sv: "Vilken typ av lärartjänst söker du?" },
     when: (a) => a["field"] === "teaching",
     options: [
-      { value: "Primary School Teacher", label: "Primary school" },
-      { value: "Secondary School Teacher", label: "Secondary school" },
-      { value: "University Lecturer", label: "University / higher ed" },
-      { value: "Private Tutor", label: "Private tutor" },
-      { value: "Teaching Assistant", label: "Teaching assistant" },
+      { value: "preschool", label: { en: "Preschool Teacher", sv: "Förskollärare" } },
+      { value: "primary", label: { en: "Primary School Teacher", sv: "Grundskollärare" } },
+      { value: "secondary", label: { en: "Secondary School Teacher", sv: "Gymnasielärare" } },
+      { value: "university", label: { en: "University Lecturer", sv: "Universitetslektor" } },
+      { value: "tutor", label: { en: "Private Tutor", sv: "Privatlärare" } },
+      { value: "ta", label: { en: "Teaching Assistant", sv: "Lärarassistent" } },
     ],
-    apply: (p, a) => {
-      p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, a as string[]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, v)), ctx.question, a, ctx.lang),
   },
   {
     id: "roleDesign",
     kind: "multi",
-    prompt: "Which design role suits you?",
+    prompt: { en: "Which design role suits you?", sv: "Vilken designroll passar dig?" },
     when: (a) => a["field"] === "design",
     options: [
-      { value: "UX Designer", label: "UX Designer" },
-      { value: "UI Designer", label: "UI Designer" },
-      { value: "Product Designer", label: "Product Designer" },
-      { value: "Graphic Designer", label: "Graphic Designer" },
+      { value: "ux", label: { en: "UX Designer", sv: "UX-designer" } },
+      { value: "ui", label: { en: "UI Designer", sv: "UI-designer" } },
+      { value: "product", label: { en: "Product Designer", sv: "Produktdesigner" } },
+      { value: "graphic", label: { en: "Graphic Designer", sv: "Grafisk designer" } },
     ],
-    apply: (p, a) => {
-      p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, a as string[]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, v)), ctx.question, a, ctx.lang),
   },
   {
     id: "roleHealthcare",
     kind: "multi",
-    prompt: "Which healthcare role are you looking for?",
+    prompt: { en: "Which healthcare role are you looking for?", sv: "Vilken vårdroll söker du?" },
     when: (a) => a["field"] === "healthcare",
     options: [
-      { value: "Nurse", label: "Nurse" },
-      { value: "Physician", label: "Physician / Doctor" },
-      { value: "Therapist", label: "Therapist" },
-      { value: "Medical Technician", label: "Medical technician" },
-      { value: "Care Assistant", label: "Care assistant" },
+      { value: "nurse", label: { en: "Nurse", sv: "Sjuksköterska" } },
+      { value: "assistant", label: { en: "Care Assistant", sv: "Undersköterska" } },
+      { value: "physician", label: { en: "Physician / Doctor", sv: "Läkare" } },
+      { value: "therapist", label: { en: "Therapist", sv: "Terapeut" } },
+      { value: "counselor", label: { en: "Psychologist / Counselor", sv: "Psykolog / Kurator" } },
     ],
-    apply: (p, a) => {
-      p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, a as string[]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, v)), ctx.question, a, ctx.lang),
   },
   {
     id: "roleOther",
     kind: "single",
-    prompt: "Which best describes the work you want?",
+    prompt: { en: "Which best describes the work you want?", sv: "Vad beskriver bäst arbetet du vill ha?" },
     when: (a) => a["field"] === "business" || a["field"] === "other",
     options: [
-      { value: "Management", label: "Management / Leadership" },
-      { value: "Sales", label: "Sales" },
-      { value: "Marketing", label: "Marketing" },
-      { value: "Operations", label: "Operations" },
-      { value: "Customer Support", label: "Customer support" },
-      { value: "Administration", label: "Administration" },
+      { value: "management", label: { en: "Management / Leadership", sv: "Chef / Ledarskap" } },
+      { value: "sales", label: { en: "Sales", sv: "Försäljning" } },
+      { value: "marketing", label: { en: "Marketing", sv: "Marknadsföring" } },
+      { value: "operations", label: { en: "Operations", sv: "Verksamhet / Drift" } },
+      { value: "support", label: { en: "Customer Support", sv: "Kundtjänst" } },
+      { value: "counselor", label: { en: "Counselor / Advisor", sv: "Rådgivare / Kurator" } },
+      { value: "economist", label: { en: "Economist / Analyst", sv: "Ekonom / Analytiker" } },
+      { value: "admin", label: { en: "Administration", sv: "Administration" } },
     ],
-    apply: (p, a) => {
-      p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, [a as string]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.careerGoals.desiredRoles = addUnique(p.careerGoals.desiredRoles, v)), ctx.question, a, ctx.lang),
   },
 
   // ---- Skills, branched ----
   {
     id: "langs",
     kind: "multi",
-    prompt: "Which programming languages are you most confident in?",
+    prompt: { en: "Which programming languages are you most confident in?", sv: "Vilka programmeringsspråk behärskar du bäst?" },
     when: (a) => a["field"] === "software",
     optional: true,
     options: [
@@ -178,16 +196,16 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "stack",
     kind: "multi",
-    prompt: "Which tools or frameworks do you work with?",
+    prompt: { en: "Which tools or frameworks do you work with?", sv: "Vilka verktyg eller ramverk arbetar du med?" },
     when: (a) => a["field"] === "software",
     optional: true,
     options: [
       { value: "React", label: "React" },
       { value: "Node.js", label: "Node.js" },
-      { value: "Docker", label: "Docker / Kubernetes" },
-      { value: "AWS", label: "AWS / Cloud" },
-      { value: "PostgreSQL", label: "SQL databases" },
-      { value: "TensorFlow", label: "ML / data tooling" },
+      { value: "Docker", label: { en: "Docker / Kubernetes", sv: "Docker / Kubernetes" } },
+      { value: "AWS", label: { en: "AWS / Cloud", sv: "AWS / Moln" } },
+      { value: "PostgreSQL", label: { en: "SQL databases", sv: "SQL-databaser" } },
+      { value: "TensorFlow", label: { en: "ML / data tooling", sv: "ML / dataverktyg" } },
     ],
     apply: (p, a) => {
       p.skills.frameworks = addUnique(p.skills.frameworks, a as string[]);
@@ -196,30 +214,30 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "subjects",
     kind: "multi",
-    prompt: "Which subjects do you teach?",
+    prompt: { en: "Which subjects do you teach?", sv: "Vilka ämnen undervisar du i?" },
     when: (a) => a["field"] === "teaching",
     optional: true,
     options: [
-      { value: "Mathematics", label: "Mathematics" },
-      { value: "Science", label: "Science" },
-      { value: "Languages", label: "Languages" },
-      { value: "Humanities", label: "Humanities / Social studies" },
-      { value: "Arts", label: "Arts" },
-      { value: "Computing", label: "Computing / IT" },
+      { value: "math", label: { en: "Mathematics", sv: "Matematik" } },
+      { value: "science", label: { en: "Science", sv: "Naturvetenskap" } },
+      { value: "languages", label: { en: "Languages", sv: "Språk" } },
+      { value: "humanities", label: { en: "Humanities / Social studies", sv: "Samhällskunskap / Humaniora" } },
+      { value: "arts", label: { en: "Arts", sv: "Estetiska ämnen" } },
+      { value: "pe", label: { en: "Physical Education", sv: "Idrott & hälsa" } },
+      { value: "computing", label: { en: "Computing / IT", sv: "Data / IT" } },
     ],
-    apply: (p, a) => {
-      p.skills.technical = addUnique(p.skills.technical, a as string[]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.skills.technical = addUnique(p.skills.technical, v)), ctx.question, a, ctx.lang),
   },
 
   // ---- Experience ----
   {
     id: "years",
     kind: "number",
-    prompt: "How many years of experience do you have in this area?",
+    prompt: { en: "How many years of experience do you have in this area?", sv: "Hur många års erfarenhet har du inom detta?" },
     min: 0,
     max: 60,
-    unit: "years",
+    unit: { en: "years", sv: "år" },
     apply: (p, a) => {
       p.experience.totalYears = a as number;
     },
@@ -227,7 +245,7 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "leadership",
     kind: "yesno",
-    prompt: "Have you held a leadership or management role?",
+    prompt: { en: "Have you held a leadership or management role?", sv: "Har du haft en lednings- eller chefsroll?" },
     apply: (p, a) => {
       p.experience.hasLeadership = a as boolean;
     },
@@ -237,30 +255,30 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "soft",
     kind: "multi",
-    prompt: "Which of these are your strongest soft skills?",
+    prompt: { en: "Which of these are your strongest soft skills?", sv: "Vilka är dina starkaste personliga egenskaper?" },
     optional: true,
     options: [
-      { value: "Communication", label: "Communication" },
-      { value: "Teamwork", label: "Teamwork" },
-      { value: "Problem-solving", label: "Problem-solving" },
-      { value: "Leadership", label: "Leadership" },
-      { value: "Adaptability", label: "Adaptability" },
-      { value: "Time management", label: "Time management" },
+      { value: "communication", label: { en: "Communication", sv: "Kommunikation" } },
+      { value: "teamwork", label: { en: "Teamwork", sv: "Samarbete" } },
+      { value: "problem", label: { en: "Problem-solving", sv: "Problemlösning" } },
+      { value: "leadership", label: { en: "Leadership", sv: "Ledarskap" } },
+      { value: "empathy", label: { en: "Empathy / Care", sv: "Empati / Omtanke" } },
+      { value: "adaptability", label: { en: "Adaptability", sv: "Flexibilitet" } },
+      { value: "time", label: { en: "Time management", sv: "Tidshantering" } },
     ],
-    apply: (p, a) => {
-      p.skills.soft = addUnique(p.skills.soft, a as string[]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.skills.soft = addUnique(p.skills.soft, v)), ctx.question, a, ctx.lang),
   },
 
   // ---- Work preferences ----
   {
     id: "arrangement",
     kind: "multi",
-    prompt: "How do you want to work?",
+    prompt: { en: "How do you want to work?", sv: "Hur vill du arbeta?" },
     options: [
-      { value: "remote", label: "Remote" },
-      { value: "hybrid", label: "Hybrid" },
-      { value: "on-site", label: "On-site" },
+      { value: "remote", label: { en: "Remote", sv: "Distans" } },
+      { value: "hybrid", label: { en: "Hybrid", sv: "Hybrid" } },
+      { value: "on-site", label: { en: "On-site", sv: "På plats" } },
     ],
     apply: (p, a) => {
       p.preferences.arrangements = (a as string[]).filter((v) =>
@@ -271,12 +289,12 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "employment",
     kind: "multi",
-    prompt: "What type of employment are you looking for?",
+    prompt: { en: "What type of employment are you looking for?", sv: "Vilken anställningsform söker du?" },
     options: [
-      { value: "full-time", label: "Full-time" },
-      { value: "part-time", label: "Part-time" },
-      { value: "contract", label: "Contract" },
-      { value: "internship", label: "Internship" },
+      { value: "full-time", label: { en: "Full-time", sv: "Heltid" } },
+      { value: "part-time", label: { en: "Part-time", sv: "Deltid" } },
+      { value: "contract", label: { en: "Contract", sv: "Konsult / Kontrakt" } },
+      { value: "internship", label: { en: "Internship", sv: "Praktik" } },
     ],
     apply: (p, a) => {
       p.preferences.employmentTypes = (a as string[]).filter((v) =>
@@ -287,12 +305,12 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "companyType",
     kind: "single",
-    prompt: "Do you prefer startups or established companies?",
+    prompt: { en: "Do you prefer startups or established companies?", sv: "Föredrar du startups eller etablerade företag?" },
     optional: true,
     options: [
-      { value: "startup", label: "Startup" },
-      { value: "enterprise", label: "Established / enterprise" },
-      { value: "no-preference", label: "No preference" },
+      { value: "startup", label: { en: "Startup", sv: "Startup" } },
+      { value: "enterprise", label: { en: "Established / enterprise", sv: "Etablerat / storföretag" } },
+      { value: "no-preference", label: { en: "No preference", sv: "Ingen preferens" } },
     ],
     apply: (p, a) => {
       if (a !== null) p.preferences.startupVsEnterprise = a as "startup" | "enterprise" | "no-preference";
@@ -301,26 +319,24 @@ export const QUESTION_BANK: Question[] = [
 
   // ---- Location (source-specific) ----
   {
-    // JobTech is Sweden-only, so we ask which Swedish city and fix the country.
     id: "jtCity",
     kind: "single",
-    prompt: "Where in Sweden would you like to work?",
+    prompt: { en: "Where in Sweden would you like to work?", sv: "Var i Sverige vill du arbeta?" },
     when: (a) => a["source"] === "jobtech",
     options: [
       { value: "Stockholm", label: "Stockholm" },
-      { value: "Göteborg", label: "Gothenburg" },
+      { value: "Göteborg", label: { en: "Gothenburg", sv: "Göteborg" } },
       { value: "Malmö", label: "Malmö" },
       { value: "Uppsala", label: "Uppsala" },
-      { value: "any", label: "Anywhere in Sweden" },
+      { value: "any", label: { en: "Anywhere in Sweden", sv: "Var som helst i Sverige" } },
     ],
     apply: (p, a) => {
-      p.location.countries = ["Sweden"];
+      p.location.countries = ["Sverige"];
       p.preferences.salaryCurrency = "SEK";
       if (a !== null && a !== "any") p.location.cities = [a as string];
     },
   },
   {
-    // Adzuna is international — the choice also selects the API marketplace and currency.
     id: "adzMarket",
     kind: "single",
     prompt: "Which country's job market should I search?",
@@ -337,7 +353,7 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "relocate",
     kind: "yesno",
-    prompt: "Would you be open to relocating for the right role?",
+    prompt: { en: "Would you be open to relocating for the right role?", sv: "Är du öppen för att flytta för rätt jobb?" },
     apply: (p, a) => {
       p.location.willingToRelocate = a as boolean;
     },
@@ -347,8 +363,8 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "salaryMin",
     kind: "number",
-    prompt: "What's the minimum annual salary you'd accept?",
-    why: "I'll rank jobs that meet it higher",
+    prompt: { en: "What's the minimum annual salary you'd accept?", sv: "Vilken är den lägsta årslön du kan tänka dig?" },
+    why: { en: "I'll rank jobs that meet it higher", sv: "Jag rankar jobb som uppfyller den högre" },
     min: 0,
     optional: true,
     apply: (p, a) => {
@@ -360,18 +376,17 @@ export const QUESTION_BANK: Question[] = [
   {
     id: "motivations",
     kind: "multi",
-    prompt: "What matters most to you in your next role?",
+    prompt: { en: "What matters most to you in your next role?", sv: "Vad är viktigast för dig i nästa jobb?" },
     optional: true,
     options: [
-      { value: "Compensation", label: "Pay & benefits" },
-      { value: "Growth", label: "Learning & growth" },
-      { value: "Work-life balance", label: "Work-life balance" },
-      { value: "Impact", label: "Meaningful impact" },
-      { value: "Autonomy", label: "Autonomy" },
-      { value: "Team", label: "Great team / culture" },
+      { value: "compensation", label: { en: "Pay & benefits", sv: "Lön & förmåner" } },
+      { value: "growth", label: { en: "Learning & growth", sv: "Lärande & utveckling" } },
+      { value: "balance", label: { en: "Work-life balance", sv: "Balans i livet" } },
+      { value: "impact", label: { en: "Meaningful impact", sv: "Meningsfullt arbete" } },
+      { value: "autonomy", label: { en: "Autonomy", sv: "Självständighet" } },
+      { value: "team", label: { en: "Great team / culture", sv: "Bra team / kultur" } },
     ],
-    apply: (p, a) => {
-      p.personal.motivations = addUnique(p.personal.motivations, a as string[]);
-    },
+    apply: (p, a, ctx) =>
+      storeLabels((v) => (p.personal.motivations = addUnique(p.personal.motivations, v)), ctx.question, a, ctx.lang),
   },
 ];
