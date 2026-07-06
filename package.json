@@ -10,6 +10,7 @@
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/index.js",
     "dev": "node --env-file-if-exists=.env --experimental-strip-types src/index.ts",
+    "search": "node --env-file-if-exists=.env --experimental-strip-types src/search-demo.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\""
   },
