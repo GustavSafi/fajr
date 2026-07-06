@@ -8,7 +8,32 @@ It is **rule-based, not AI-driven**: the interview is a branching questionnaire
 and job matches are scored with a transparent weighted point system. No LLM, no
 API costs, fully deterministic and explainable.
 
-> Status: **Step 2 of 8 — interview complete.** Job search and ranking next.
+You pick **one source per run** — JobTech (Sweden) or Adzuna (international) —
+and the questions, search, and scoring adapt to that source.
+
+> Status: **Working end-to-end.** interview → search → ranked, explained results.
+
+## How it works
+
+```
+pick source → structured interview → build query → search that source
+            → rank (per-source weighted score) → explained results
+```
+
+Each job gets a 0–100 score from weighted sub-scores (title, skills, experience,
+location, remote, salary, employment). Crucially, a dimension only counts when
+the data exists — JobTech rarely lists salary, Adzuna has no remote flag — so
+missing fields are skipped, never scored as zero. Every result shows **why** it
+matched and **what's missing**:
+
+```
+ 1. [ 84/100]  Backend Engineer — Randstad Technologies
+      London, UK · hybrid · 117,000–130,000 GBP
+      ✓ Title matches your target role
+      ✓ Matches your skills: Go
+      ✓ Hybrid — matches your preference
+      → https://www.adzuna.co.uk/jobs/...
+```
 
 ## Requirements
 
@@ -46,10 +71,11 @@ npm test           # run unit tests
 src/
   config/     typed environment loading & validation (job providers only)
   models/     shared types (UserProfile, Job, JobProvider, ...)
-  interview/  structured branching questionnaire + points engine  (step 2 ✓)
-  profile/    profile summary & (soon) job-query building          (step 3)
-  apis/       job providers behind one interface                   (step 4)
-  ranking/    weighted compatibility scoring & explanations        (step 6)
+  interview/  structured branching questionnaire (source-aware)    ✓
+  profile/    profile summary + job-query building                 ✓
+  apis/       job providers (JobTech, Adzuna) behind one interface ✓
+  ranking/    per-source weighted scoring & explanations           ✓
+  results.ts  terminal renderer for ranked jobs
   utils/      logging & helpers
 ```
 

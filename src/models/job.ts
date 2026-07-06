@@ -36,24 +36,36 @@ export interface Job {
   postedAt?: string;
 }
 
-/** The breakdown behind a compatibility score — makes ranking explainable. */
-export interface ScoreBreakdown {
-  title: number;
-  skills: number;
-  experience: number;
-  location: number;
-  remote: number;
-  salary: number;
-  industry: number;
-  keywords: number;
+/** The dimensions the ranker scores a job on. */
+export type ScoreDimension =
+  | "title"
+  | "skills"
+  | "experience"
+  | "location"
+  | "remote"
+  | "salary"
+  | "employment";
+
+/**
+ * One dimension's contribution to a job's score. `applicable` is false when the
+ * job (or profile) lacks the data for this dimension — in which case it is left
+ * out of the weighted average entirely rather than counted as a zero.
+ */
+export interface SubScore {
+  dimension: ScoreDimension;
+  /** 0–1 quality on this dimension (only meaningful when applicable). */
+  score: number;
+  applicable: boolean;
+  /** Weight this dimension carried for this job's source. */
+  weight: number;
 }
 
 /** A job paired with its compatibility score and human-readable reasoning. */
 export interface RankedJob {
   job: Job;
-  /** Overall compatibility, 0–100. */
+  /** Overall compatibility, 0–100 (weighted average of applicable sub-scores). */
   score: number;
-  breakdown: ScoreBreakdown;
+  subScores: SubScore[];
   /** Why this job is a good match. */
   reasons: string[];
   /** Requirements the candidate appears to be missing, if any. */

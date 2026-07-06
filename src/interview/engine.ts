@@ -1,4 +1,5 @@
 import type { Answers, InterviewIO, InterviewResult, Question } from "./types.ts";
+import type { JobSource } from "../models/index.ts";
 import { emptyProfile } from "../models/index.ts";
 import { QUESTION_BANK } from "./questions.ts";
 import { askQuestion } from "./ask.ts";
@@ -33,6 +34,9 @@ export async function runInterview(
 
   profile.summary = buildSummary(profile);
 
+  // The source question defaults to jobtech if somehow unanswered.
+  const source: JobSource = answers["source"] === "adzuna" ? "adzuna" : "jobtech";
+
   io.say(CLOSING);
-  return { profile, answers };
+  return { profile, answers, source };
 }

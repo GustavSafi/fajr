@@ -1,8 +1,25 @@
 import type { AppConfig } from "../config/config.ts";
-import type { Job, JobProvider, JobQuery } from "../models/index.ts";
+import type { Job, JobProvider, JobQuery, JobSource } from "../models/index.ts";
 import { JobTechProvider } from "./jobtech.ts";
 import { AdzunaProvider } from "./adzuna.ts";
 import { logger } from "../utils/logger.ts";
+
+/**
+ * Build the single provider for a chosen source. For Adzuna, `marketplace`
+ * (e.g. "gb", "us") overrides the config default so the interview's country
+ * choice selects the API marketplace.
+ */
+export function buildProviderForSource(
+  config: AppConfig,
+  source: JobSource,
+  marketplace?: string,
+): JobProvider {
+  if (source === "adzuna") {
+    const adzuna = marketplace ? { ...config.adzuna, country: marketplace } : config.adzuna;
+    return new AdzunaProvider(adzuna);
+  }
+  return new JobTechProvider(config.jobtech);
+}
 
 /**
  * Build the list of usable job providers from config. Adding a new provider is

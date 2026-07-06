@@ -1,4 +1,4 @@
-import type { UserProfile } from "../models/index.ts";
+import type { JobSource, UserProfile } from "../models/index.ts";
 
 /** A single answer, shaped by the question kind. `null` means skipped. */
 export type Answer = string | string[] | number | boolean | null;
@@ -51,4 +51,6 @@ export interface InterviewIO {
 export interface InterviewResult {
   profile: UserProfile;
   answers: Answers;
+  /** The job source the user chose to search. */
+  source: JobSource;
 }

@@ -16,14 +16,21 @@ const INDUSTRY_BY_FIELD: Record<string, string> = {
   other: "Other",
 };
 
-/** Display name for each country code (also used to pick the API marketplace later). */
-const COUNTRY_BY_CODE: Record<string, string> = {
-  se: "Sweden",
-  gb: "United Kingdom",
-  us: "United States",
-  de: "Germany",
-  any: "Anywhere / Remote",
-};
+/** Adzuna marketplaces we let the user search, with display country + currency. */
+export const ADZUNA_MARKETS: Array<{
+  value: string;
+  label: string;
+  country: string;
+  currency: string;
+}> = [
+  { value: "gb", label: "United Kingdom", country: "United Kingdom", currency: "GBP" },
+  { value: "us", label: "United States", country: "United States", currency: "USD" },
+  { value: "de", label: "Germany", country: "Germany", currency: "EUR" },
+  { value: "fr", label: "France", country: "France", currency: "EUR" },
+  { value: "nl", label: "Netherlands", country: "Netherlands", currency: "EUR" },
+  { value: "au", label: "Australia", country: "Australia", currency: "AUD" },
+  { value: "ca", label: "Canada", country: "Canada", currency: "CAD" },
+];
 
 /**
  * The interview as data. Questions are asked in order; `when` skips the ones
@@ -31,6 +38,19 @@ const COUNTRY_BY_CODE: Record<string, string> = {
  * Fully deterministic — no AI, no external calls.
  */
 export const QUESTION_BANK: Question[] = [
+  {
+    id: "source",
+    kind: "single",
+    prompt: "Which job source would you like to search?",
+    why: "Each source covers different regions and data, so I'll tailor the questions",
+    options: [
+      { value: "jobtech", label: "JobTech — jobs in Sweden (Arbetsförmedlingen)" },
+      { value: "adzuna", label: "Adzuna — international jobs (UK, US, Germany, ...)" },
+    ],
+    apply: () => {
+      /* source drives branching via `when`; nothing to store on the profile */
+    },
+  },
   {
     id: "field",
     kind: "single",
@@ -279,20 +299,39 @@ export const QUESTION_BANK: Question[] = [
     },
   },
 
-  // ---- Location ----
+  // ---- Location (source-specific) ----
   {
-    id: "country",
+    // JobTech is Sweden-only, so we ask which Swedish city and fix the country.
+    id: "jtCity",
     kind: "single",
-    prompt: "Where would you like to work?",
+    prompt: "Where in Sweden would you like to work?",
+    when: (a) => a["source"] === "jobtech",
     options: [
-      { value: "se", label: "Sweden" },
-      { value: "gb", label: "United Kingdom" },
-      { value: "us", label: "United States" },
-      { value: "de", label: "Germany" },
-      { value: "any", label: "Anywhere / fully remote" },
+      { value: "Stockholm", label: "Stockholm" },
+      { value: "Göteborg", label: "Gothenburg" },
+      { value: "Malmö", label: "Malmö" },
+      { value: "Uppsala", label: "Uppsala" },
+      { value: "any", label: "Anywhere in Sweden" },
     ],
     apply: (p, a) => {
-      p.location.countries = addUnique(p.location.countries, [COUNTRY_BY_CODE[a as string] ?? "Anywhere"]);
+      p.location.countries = ["Sweden"];
+      p.preferences.salaryCurrency = "SEK";
+      if (a !== null && a !== "any") p.location.cities = [a as string];
+    },
+  },
+  {
+    // Adzuna is international — the choice also selects the API marketplace and currency.
+    id: "adzMarket",
+    kind: "single",
+    prompt: "Which country's job market should I search?",
+    when: (a) => a["source"] === "adzuna",
+    options: ADZUNA_MARKETS.map((m) => ({ value: m.value, label: m.label })),
+    apply: (p, a) => {
+      const market = ADZUNA_MARKETS.find((m) => m.value === a);
+      if (market) {
+        p.location.countries = [market.country];
+        p.preferences.salaryCurrency = market.currency;
+      }
     },
   },
   {
@@ -305,21 +344,6 @@ export const QUESTION_BANK: Question[] = [
   },
 
   // ---- Compensation ----
-  {
-    id: "currency",
-    kind: "single",
-    prompt: "Which currency should I use for salary?",
-    optional: true,
-    options: [
-      { value: "SEK", label: "SEK" },
-      { value: "GBP", label: "GBP" },
-      { value: "USD", label: "USD" },
-      { value: "EUR", label: "EUR" },
-    ],
-    apply: (p, a) => {
-      if (a !== null) p.preferences.salaryCurrency = a as string;
-    },
-  },
   {
     id: "salaryMin",
     kind: "number",

@@ -1,5 +1,8 @@
 import type { Job } from "./job.ts";
 
+/** The job sources the app can search, one per run. */
+export type JobSource = "jobtech" | "adzuna";
+
 /**
  * A normalized job-search query, derived from the user's profile. Provider
  * clients translate this into whatever parameters their own API expects.
