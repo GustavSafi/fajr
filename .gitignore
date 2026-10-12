@@ -21,3 +21,8 @@ Thumbs.db
 
 # Session cache (job search results, saved profiles)
 .cache/
+
+# Visual Studio
+.vs/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

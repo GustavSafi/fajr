@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+/*
+ * Typsnitten är självhostade via Fontsource i stället för Googles CDN.
+ * Två skäl: sidan slipper ett tredjepartsanrop vid varje besök, och tyska
+ * domstolar har slagit fast att inbäddade Google Fonts skickar besökarens
+ * IP-adress till Google utan samtycke — inget vi vill ha på en sajt som
+ * hanterar CV:n. Vi laddar bara latinsk delmängd och de vikter vi använder.
+ */
+@import "@fontsource-variable/familjen-grotesk/wght.css";
+@import "@fontsource/ibm-plex-sans/latin-400.css";
+@import "@fontsource/ibm-plex-sans/latin-500.css";
+@import "@fontsource/ibm-plex-sans/latin-600.css";
+@import "@fontsource/ibm-plex-mono/latin-400.css";
+@import "@fontsource/ibm-plex-mono/latin-500.css";
+
+/*
+ * Jobbares designsystem.
+ *
+ * En färg bär hela gränssnittet: en djup smaragd som betyder "matchning" och
+ * "gå vidare". Allt annat är neutraler med en svag grön dragning, så att
+ * accenten aldrig konkurrerar med sig själv. Orange finns bara för brådska
+ * (sista ansökningsdag), aldrig som dekoration.
+ *
+ * Tokens definieras som vanliga CSS-variabler och speglas in i Tailwind med
+ * @theme inline. Det gör att mörkt läge byter *värden*, inte klassnamn —
+ * ingen komponent behöver veta vilket tema som är aktivt.
+ */
+
+:root {
+  --ground: #fbfcfb;
+  --surface: #ffffff;
+  --sunk: #f1f5f2;
+  --ink: #0d1311;
+  --ink-soft: #35423d;
+  --ink-mute: #5f6e68;
+  --line: #e2e9e4;
+  --line-strong: #c9d5ce;
+  --brand: #0e6e55;
+  --brand-hover: #0a5642;
+  --brand-contrast: #ffffff;
+  --brand-wash: #e4f2ec;
+  --urgent: #a8461b;
+  --urgent-wash: #fbeae1;
+  --shadow-card: 0 1px 2px rgb(13 19 17 / 0.04), 0 1px 3px rgb(13 19 17 / 0.06);
+  --shadow-lift: 0 2px 4px rgb(13 19 17 / 0.05), 0 12px 28px -18px rgb(13 19 17 / 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --ground: #0a0e0c;
+    --surface: #121815;
+    --sunk: #19211d;
+    --ink: #e9f0ec;
+    --ink-soft: #c2cec8;
+    --ink-mute: #8a9a93;
+    --line: #232d28;
+    --line-strong: #354039;
+    --brand: #43d3a2;
+    --brand-hover: #63e0b6;
+    --brand-contrast: #06120d;
+    --brand-wash: #10281f;
+    --urgent: #e88b62;
+    --urgent-wash: #2b1a12;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5);
+    --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.4), 0 12px 28px -18px rgb(0 0 0 / 0.9);
+  }
+}
+
+.dark {
+  --ground: #0a0e0c;
+  --surface: #121815;
+  --sunk: #19211d;
+  --ink: #e9f0ec;
+  --ink-soft: #c2cec8;
+  --ink-mute: #8a9a93;
+  --line: #232d28;
+  --line-strong: #354039;
+  --brand: #43d3a2;
+  --brand-hover: #63e0b6;
+  --brand-contrast: #06120d;
+  --brand-wash: #10281f;
+  --urgent: #e88b62;
+  --urgent-wash: #2b1a12;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.4), 0 12px 28px -18px rgb(0 0 0 / 0.9);
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-sunk: var(--sunk);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-mute: var(--ink-mute);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-brand-wash: var(--brand-wash);
+  --color-urgent: var(--urgent);
+  --color-urgent-wash: var(--urgent-wash);
+
+  --font-display: "Familjen Grotesk Variable", "Familjen Grotesk", "Helvetica Neue", Arial,
+    sans-serif;
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-lift: var(--shadow-lift);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.018em;
+    text-wrap: balance;
+    line-height: 1.15;
+  }
+
+  /* Ett enda synligt fokusuttryck i hela appen. */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background: var(--brand-wash);
+    color: var(--ink);
+  }
+}
+
+@layer utilities {
+  /* Siffror som ska stå i kolumn: löner, poäng, antal. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Klipper löpande text till n rader utan att bygga en egen komponent. */
+  .clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
